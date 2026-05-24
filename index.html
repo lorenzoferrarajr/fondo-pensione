@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fondo Pensione — Calcolo deducibilità</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --surface-alt: #f0f1f3;
+    --border: #e2e4e9;
+    --text: #1a1c20;
+    --text-dim: #6b7280;
+    --accent: #3b6ef5;
+    --accent-soft: #e6edff;
+    --warn-bg: #fff3e0;
+    --warn-text: #9a4a00;
+    --warn-border: #f0b87a;
+    --danger: #b42318;
+    --future-bg: #fafbfd;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #181b21;
+      --surface-alt: #1f232b;
+      --border: #2a2f39;
+      --text: #e6e8ec;
+      --text-dim: #9aa1ad;
+      --accent: #6f93ff;
+      --accent-soft: #1c2540;
+      --warn-bg: #3a2a14;
+      --warn-text: #ffb874;
+      --warn-border: #6d4a1f;
+      --danger: #ff6b5e;
+      --future-bg: #14171d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+  header.app-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  header.app-header h1 {
+    font-size: 1.4rem;
+    margin: 0;
+    font-weight: 600;
+  }
+  header.app-header .anno {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  section h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    margin: 0 0 12px;
+  }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .settings-grid .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .settings-grid label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  input[type="number"], input[type="text"], select {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    width: 100%;
+    min-width: 0;
+  }
+  input[type="number"]:focus, input[type="text"]:focus, select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: var(--accent);
+  }
+  input[readonly] {
+    background: var(--surface-alt);
+    color: var(--text-dim);
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    transition: background 0.1s ease;
+  }
+  button:hover { background: var(--surface-alt); }
+  button.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  button.primary:hover { filter: brightness(0.95); }
+  button.danger { color: var(--danger); }
+  button.icon {
+    padding: 4px 8px;
+    line-height: 1;
+    font-size: 1.1rem;
+  }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .stat {
+    background: var(--surface-alt);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .stat .label {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .stat .value {
+    font-size: 1.45rem;
+    font-weight: 600;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat.accent {
+    background: var(--accent-soft);
+  }
+
+  .banner-warn {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  .banner-warn[hidden] { display: none; }
+
+  .month-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.92rem;
+  }
+  .month-table th, .month-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .month-table th {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: transparent;
+  }
+  .month-table td.num, .month-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .month-table tr.future > td { background: var(--future-bg); color: var(--text-dim); }
+  .month-table tr.future .mese-name { color: var(--text); }
+  .month-table tbody tr.voci-row > td {
+    background: var(--surface-alt);
+    padding: 8px 10px 12px;
+  }
+  .month-table .totale-input { max-width: 130px; margin-left: auto; }
+  .month-table .voci-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .month-table .voce {
+    display: grid;
+    grid-template-columns: 1fr 130px auto;
+    gap: 6px;
+    align-items: center;
+  }
+  .month-table .voci-actions {
+    margin-top: 4px;
+  }
+  .month-table .mese-name { font-weight: 500; }
+  .month-table .toggle-voci {
+    margin-left: 6px;
+    font-size: 0.85rem;
+  }
+
+  .ricorrenti-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ricorrente-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--surface-alt);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .ricorrente-card .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .ricorrente-card .actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .empty-hint {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    padding: 8px 0;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: -4px;
+    padding: 4px;
+  }
+
+  @media (min-width: 720px) {
+    header.app-header h1 { font-size: 1.7rem; }
+    .settings-grid {
+      grid-template-columns: 1fr 1fr auto;
+      align-items: end;
+    }
+    .settings-actions { margin-top: 0; }
+    .dashboard {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .ricorrente-card {
+      grid-template-columns: 2fr 1fr 1fr 1fr auto;
+      align-items: end;
+      gap: 10px;
+    }
+    .ricorrente-card .row { display: contents; }
+    .ricorrente-card .actions { justify-content: center; }
+  }
+
+  .file-input-hidden { display: none; }
+  .footer-note {
+    margin-top: 24px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="app-header">
+    <h1>Fondo Pensione — Calcolo deducibilità</h1>
+    <span class="anno" id="anno-corrente"></span>
+  </header>
+
+  <section aria-labelledby="imp-title">
+    <h2 id="imp-title">Impostazioni</h2>
+    <div class="settings-grid">
+      <div class="field">
+        <label for="max-deducibile">Massimo deducibile (€)</label>
+        <input type="number" id="max-deducibile" min="0" step="0.01" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label for="mese-corrente">Mese corrente</label>
+        <select id="mese-corrente"></select>
+      </div>
+      <div class="settings-actions">
+        <button id="btn-export" type="button">Esporta JSON</button>
+        <button id="btn-import" type="button">Importa JSON</button>
+        <button id="btn-reset" class="danger" type="button">Azzera tutto</button>
+        <input type="file" id="file-import" accept="application/json" class="file-input-hidden">
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="dash-title">
+    <h2 id="dash-title">Riepilogo</h2>
+    <div class="dashboard">
+      <div class="stat">
+        <div class="label">Già versato (YTD)</div>
+        <div class="value" id="stat-ytd">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Previsione fine anno</div>
+        <div class="value" id="stat-prev">—</div>
+      </div>
+      <div class="stat accent">
+        <div class="label">Residuo da versare</div>
+        <div class="value" id="stat-residuo">—</div>
+      </div>
+    </div>
+    <div class="banner-warn" id="banner-sforamento" hidden></div>
+  </section>
+
+  <section aria-labelledby="tab-title">
+    <h2 id="tab-title">Dettaglio mensile</h2>
+    <div class="table-wrap">
+      <table class="month-table">
+        <thead>
+          <tr>
+            <th>Mese</th>
+            <th class="num">Totale</th>
+            <th class="num">Cumulato</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-mesi"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="ric-title">
+    <h2 id="ric-title">Versamenti ricorrenti (mesi futuri)</h2>
+    <div class="ricorrenti-list" id="ricorrenti-list"></div>
+    <div style="margin-top:12px;">
+      <button id="btn-add-ricorrente" class="primary" type="button">+ Aggiungi ricorrente</button>
+    </div>
+  </section>
+
+  <div class="footer-note">I dati restano sul tuo browser (localStorage). Usa Esporta JSON per salvare un backup.</div>
+</div>
+
+<script>
+"use strict";
+
+// ---------- Costanti ----------
+const STORAGE_KEY = "fondo-pensione/v1";
+const MESI_NOMI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const ANNO = new Date().getFullYear();
+const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+
+// ---------- Utilità ----------
+function uuid() {
+  if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+function toNum(v) {
+  if (v === "" || v === null || v === undefined) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+// ---------- Stato ----------
+function defaultState() {
+  const storico = {};
+  for (let m = 1; m <= 12; m++) {
+    storico[String(m)] = { totaleOverride: null, voci: [] };
+  }
+  return {
+    maxDeducibile: 5300,
+    meseCorrente: new Date().getMonth() + 1, // 1..12
+    storico,
+    ricorrenti: [],
+  };
+}
+
+function isValidState(s) {
+  if (!s || typeof s !== "object") return false;
+  if (typeof s.maxDeducibile !== "number") return false;
+  if (typeof s.meseCorrente !== "number" || s.meseCorrente < 1 || s.meseCorrente > 12) return false;
+  if (!s.storico || typeof s.storico !== "object") return false;
+  for (let m = 1; m <= 12; m++) {
+    const k = String(m);
+    if (!s.storico[k] || !Array.isArray(s.storico[k].voci)) return false;
+  }
+  if (!Array.isArray(s.ricorrenti)) return false;
+  return true;
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if (!isValidState(parsed)) return defaultState();
+    // Ricostruisci storico assicurando che tutti i mesi siano presenti
+    for (let m = 1; m <= 12; m++) {
+      const k = String(m);
+      if (!parsed.storico[k]) parsed.storico[k] = { totaleOverride: null, voci: [] };
+    }
+    return parsed;
+  } catch (_e) {
+    return defaultState();
+  }
+}
+
+let saveTimer = null;
+function saveStateDebounced() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_e) { /* ignore */ }
+  }, 150);
+}
+function saveStateNow() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_e) { /* ignore */ }
+}
+
+let state = loadState();
+
+// ---------- Calcoli ----------
+function totaleVoci(voci) {
+  let s = 0;
+  for (const v of voci) s += toNum(v.importo);
+  return s;
+}
+function totaleMeseStorico(meseIdx) {
+  const m = state.storico[String(meseIdx)];
+  if (!m) return 0;
+  if (m.voci && m.voci.length > 0) return totaleVoci(m.voci);
+  return toNum(m.totaleOverride);
+}
+function totaleMesePrevisione(meseIdx) {
+  let s = 0;
+  for (const r of state.ricorrenti) {
+    if (meseIdx >= r.meseInizio && meseIdx <= r.meseFine) s += toNum(r.importo);
+  }
+  return s;
+}
+function calcolaCumulativi() {
+  const out = [];
+  let cum = 0;
+  for (let m = 1; m <= 12; m++) {
+    const isPast = m <= state.meseCorrente;
+    const tot = isPast ? totaleMeseStorico(m) : totaleMesePrevisione(m);
+    cum += tot;
+    out.push({ mese: m, isPast, totale: tot, cumulato: cum });
+  }
+  return out;
+}
+function calcolaRiassunto(cumulativi) {
+  let ytd = 0;
+  for (const r of cumulativi) if (r.isPast) ytd += r.totale;
+  const previsioneFineAnno = cumulativi[11].cumulato;
+  const max = toNum(state.maxDeducibile);
+  const residuoDeducibile = Math.max(0, max - previsioneFineAnno);
+  const sforamento = Math.max(0, previsioneFineAnno - max);
+  return { ytd, previsioneFineAnno, residuoDeducibile, sforamento, max };
+}
+
+// ---------- Rendering ----------
+const els = {
+  anno: document.getElementById("anno-corrente"),
+  maxDed: document.getElementById("max-deducibile"),
+  meseCorr: document.getElementById("mese-corrente"),
+  ytd: document.getElementById("stat-ytd"),
+  prev: document.getElementById("stat-prev"),
+  residuo: document.getElementById("stat-residuo"),
+  banner: document.getElementById("banner-sforamento"),
+  tbody: document.getElementById("tbody-mesi"),
+  ricList: document.getElementById("ricorrenti-list"),
+  btnExport: document.getElementById("btn-export"),
+  btnImport: document.getElementById("btn-import"),
+  btnReset: document.getElementById("btn-reset"),
+  btnAddRic: document.getElementById("btn-add-ricorrente"),
+  fileImport: document.getElementById("file-import"),
+};
+
+function popolaSelectMesi() {
+  els.meseCorr.innerHTML = "";
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+    opt.value = String(m);
+    opt.textContent = MESI_NOMI[m - 1];
+    els.meseCorr.appendChild(opt);
+  }
+}
+
+function renderImpostazioni() {
+  els.anno.textContent = String(ANNO);
+  els.maxDed.value = state.maxDeducibile;
+  els.meseCorr.value = String(state.meseCorrente);
+}
+
+function renderDashboard(cumulativi) {
+  const r = calcolaRiassunto(cumulativi);
+  els.ytd.textContent = EURO.format(r.ytd);
+  els.prev.textContent = EURO.format(r.previsioneFineAnno);
+  els.residuo.textContent = EURO.format(r.residuoDeducibile);
+  if (r.sforamento > 0) {
+    els.banner.hidden = false;
+    els.banner.textContent = `Attenzione: la previsione di fine anno supera il massimo deducibile di ${EURO.format(r.sforamento)}.`;
+  } else {
+    els.banner.hidden = true;
+    els.banner.textContent = "";
+  }
+}
+
+function renderTabellaMesi(cumulativi) {
+  els.tbody.innerHTML = "";
+  for (const row of cumulativi) {
+    const m = row.mese;
+    const mData = state.storico[String(m)];
+    const isPast = row.isPast;
+    const hasVoci = mData.voci && mData.voci.length > 0;
+    const tr = document.createElement("tr");
+    if (!isPast) tr.classList.add("future");
+
+    // Cella nome mese (+ toggle voci se storico)
+    const tdNome = document.createElement("td");
+    const nomeSpan = document.createElement("span");
+    nomeSpan.className = "mese-name";
+    nomeSpan.textContent = MESI_NOMI[m - 1];
+    tdNome.appendChild(nomeSpan);
+    if (isPast) {
+      const btnToggle = document.createElement("button");
+      btnToggle.type = "button";
+      btnToggle.className = "toggle-voci";
+      btnToggle.dataset.mese = String(m);
+      btnToggle.textContent = hasVoci ? "− nascondi voci" : "⊕ dettaglia";
+      btnToggle.addEventListener("click", () => onToggleVoci(m));
+      tdNome.appendChild(btnToggle);
+    }
+    tr.appendChild(tdNome);
+
+    // Cella totale (input se storico, testo se futuro)
+    const tdTot = document.createElement("td");
+    tdTot.className = "num";
+    if (isPast) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.step = "0.01";
+      input.inputMode = "decimal";
+      input.className = "totale-input";
+      input.placeholder = "0,00";
+      if (hasVoci) {
+        input.value = totaleVoci(mData.voci).toFixed(2);
+        input.readOnly = true;
+        input.title = "Totale calcolato dalle voci dettagliate";
+      } else {
+        input.value = mData.totaleOverride !== null && mData.totaleOverride !== undefined ? String(mData.totaleOverride) : "";
+      }
+      input.addEventListener("input", (ev) => onTotaleMeseChange(m, ev.target.value));
+      tdTot.appendChild(input);
+    } else {
+      tdTot.textContent = EURO.format(row.totale);
+    }
+    tr.appendChild(tdTot);
+
+    // Cella cumulato
+    const tdCum = document.createElement("td");
+    tdCum.className = "num";
+    tdCum.textContent = EURO.format(row.cumulato);
+    tr.appendChild(tdCum);
+
+    els.tbody.appendChild(tr);
+
+    // Riga voci (se espanso)
+    if (isPast && hasVoci) {
+      const trVoci = document.createElement("tr");
+      trVoci.classList.add("voci-row");
+      const td = document.createElement("td");
+      td.colSpan = 3;
+      const list = document.createElement("div");
+      list.className = "voci-list";
+      for (const voce of mData.voci) {
+        list.appendChild(renderVoceRow(m, voce));
+      }
+      const actions = document.createElement("div");
+      actions.className = "voci-actions";
+      const btnAdd = document.createElement("button");
+      btnAdd.type = "button";
+      btnAdd.textContent = "+ Aggiungi voce";
+      btnAdd.addEventListener("click", () => onAddVoce(m));
+      actions.appendChild(btnAdd);
+      td.appendChild(list);
+      td.appendChild(actions);
+      trVoci.appendChild(td);
+      els.tbody.appendChild(trVoci);
+    }
+  }
+}
+
+function renderVoceRow(meseIdx, voce) {
+  const wrap = document.createElement("div");
+  wrap.className = "voce";
+
+  const inputDesc = document.createElement("input");
+  inputDesc.type = "text";
+  inputDesc.placeholder = "Descrizione";
+  inputDesc.value = voce.descrizione || "";
+  inputDesc.addEventListener("input", (ev) => {
+    voce.descrizione = ev.target.value;
+    saveStateDebounced();
+  });
+
+  const inputImp = document.createElement("input");
+  inputImp.type = "number";
+  inputImp.min = "0";
+  inputImp.step = "0.01";
+  inputImp.inputMode = "decimal";
+  inputImp.placeholder = "0,00";
+  inputImp.value = voce.importo !== undefined && voce.importo !== null && voce.importo !== "" ? String(voce.importo) : "";
+  inputImp.addEventListener("input", (ev) => {
+    voce.importo = toNum(ev.target.value);
+    // Aggiorna solo i numeri (non ridisegnare la lista voci, altrimenti perdi focus)
+    aggiornaSoloCalcoli();
+    saveStateDebounced();
+  });
+
+  const btnDel = document.createElement("button");
+  btnDel.type = "button";
+  btnDel.className = "icon danger";
+  btnDel.title = "Rimuovi voce";
+  btnDel.textContent = "✕";
+  btnDel.addEventListener("click", () => onDeleteVoce(meseIdx, voce.id));
+
+  wrap.appendChild(inputDesc);
+  wrap.appendChild(inputImp);
+  wrap.appendChild(btnDel);
+  return wrap;
+}
+
+function renderRicorrenti() {
+  els.ricList.innerHTML = "";
+  if (state.ricorrenti.length === 0) {
+    const p = document.createElement("div");
+    p.className = "empty-hint";
+    p.textContent = "Nessun versamento ricorrente. Aggiungine uno per stimare i mesi futuri.";
+    els.ricList.appendChild(p);
+    return;
+  }
+  for (const r of state.ricorrenti) {
+    els.ricList.appendChild(renderRicorrenteCard(r));
+  }
+}
+
+function renderRicorrenteCard(r) {
+  const card = document.createElement("div");
+  card.className = "ricorrente-card";
+
+  const fDesc = field("Descrizione");
+  const inDesc = document.createElement("input");
+  inDesc.type = "text";
+  inDesc.placeholder = "Es. Trattenuta busta paga";
+  inDesc.value = r.descrizione || "";
+  inDesc.addEventListener("input", (e) => { r.descrizione = e.target.value; saveStateDebounced(); });
+  fDesc.appendChild(inDesc);
+
+  const fImp = field("Importo mensile (€)");
+  const inImp = document.createElement("input");
+  inImp.type = "number"; inImp.min = "0"; inImp.step = "0.01"; inImp.inputMode = "decimal";
+  inImp.placeholder = "0,00";
+  inImp.value = r.importo !== undefined && r.importo !== null && r.importo !== "" ? String(r.importo) : "";
+  inImp.addEventListener("input", (e) => { r.importo = toNum(e.target.value); aggiornaSoloCalcoli(); saveStateDebounced(); });
+  fImp.appendChild(inImp);
+
+  const fIni = field("Mese inizio");
+  const selIni = mesiSelect(r.meseInizio);
+  selIni.addEventListener("change", (e) => {
+    r.meseInizio = clamp(parseInt(e.target.value, 10) || 1, 1, 12);
+    if (r.meseFine < r.meseInizio) r.meseFine = r.meseInizio;
+    render();
+  });
+  fIni.appendChild(selIni);
+
+  const fFin = field("Mese fine");
+  const selFin = mesiSelect(r.meseFine);
+  selFin.addEventListener("change", (e) => {
+    r.meseFine = clamp(parseInt(e.target.value, 10) || 12, 1, 12);
+    if (r.meseFine < r.meseInizio) r.meseInizio = r.meseFine;
+    render();
+  });
+  fFin.appendChild(selFin);
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  const btnDel = document.createElement("button");
+  btnDel.type = "button";
+  btnDel.className = "icon danger";
+  btnDel.title = "Rimuovi ricorrente";
+  btnDel.textContent = "✕";
+  btnDel.addEventListener("click", () => {
+    state.ricorrenti = state.ricorrenti.filter((x) => x.id !== r.id);
+    saveStateNow();
+    render();
+  });
+  actions.appendChild(btnDel);
+
+  card.appendChild(fDesc);
+  card.appendChild(fImp);
+  card.appendChild(fIni);
+  card.appendChild(fFin);
+  card.appendChild(actions);
+  return card;
+}
+
+function field(labelText) {
+  const f = document.createElement("div");
+  f.className = "field";
+  const l = document.createElement("label");
+  l.textContent = labelText;
+  f.appendChild(l);
+  return f;
+}
+function mesiSelect(value) {
+  const sel = document.createElement("select");
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+    opt.value = String(m);
+    opt.textContent = MESI_NOMI[m - 1];
+    if (m === value) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  return sel;
+}
+
+// Aggiorna solo dashboard + colonne numeriche, senza ricreare gli input editabili (preserva focus)
+function aggiornaSoloCalcoli() {
+  const cum = calcolaCumulativi();
+  renderDashboard(cum);
+  // Aggiorna celle cumulato e celle totale dei mesi futuri
+  const trs = els.tbody.querySelectorAll("tr:not(.voci-row)");
+  trs.forEach((tr, idx) => {
+    const row = cum[idx];
+    if (!row) return;
+    const cells = tr.children;
+    // cells: [nome, totale, cumulato]
+    if (!row.isPast) {
+      cells[1].textContent = EURO.format(row.totale);
+    }
+    cells[2].textContent = EURO.format(row.cumulato);
+  });
+  // Se un mese storico ha voci espanse, aggiorna il valore del suo input "totale" (readonly)
+  // (gli input editabili degli importi delle voci sono già aggiornati dall'utente)
+  const inputs = els.tbody.querySelectorAll("input.totale-input[readonly]");
+  inputs.forEach((inp) => {
+    const tr = inp.closest("tr");
+    if (!tr) return;
+    const trsAll = Array.from(els.tbody.children).filter((x) => !x.classList.contains("voci-row"));
+    const meseIdx = trsAll.indexOf(tr) + 1;
+    if (meseIdx >= 1 && meseIdx <= 12) {
+      inp.value = totaleMeseStorico(meseIdx).toFixed(2);
+    }
+  });
+}
+
+function render() {
+  const cum = calcolaCumulativi();
+  renderImpostazioni();
+  renderDashboard(cum);
+  renderTabellaMesi(cum);
+  renderRicorrenti();
+}
+
+// ---------- Handlers ----------
+function onTotaleMeseChange(meseIdx, raw) {
+  const m = state.storico[String(meseIdx)];
+  if (raw === "") m.totaleOverride = null;
+  else m.totaleOverride = toNum(raw);
+  aggiornaSoloCalcoli();
+  saveStateDebounced();
+}
+function onToggleVoci(meseIdx) {
+  const m = state.storico[String(meseIdx)];
+  if (m.voci && m.voci.length > 0) {
+    // Collassa: se c'è solo una voce, riporta il suo importo come totaleOverride; altrimenti mantieni la somma
+    const totale = totaleVoci(m.voci);
+    m.voci = [];
+    m.totaleOverride = totale > 0 ? totale : null;
+  } else {
+    // Espandi: se c'è un totaleOverride, creane una voce iniziale per non perdere il dato
+    if (m.totaleOverride !== null && m.totaleOverride !== undefined && m.totaleOverride !== 0) {
+      m.voci = [{ id: uuid(), descrizione: "", importo: toNum(m.totaleOverride) }];
+    } else {
+      m.voci = [{ id: uuid(), descrizione: "", importo: 0 }];
+    }
+    m.totaleOverride = null;
+  }
+  saveStateNow();
+  render();
+}
+function onAddVoce(meseIdx) {
+  const m = state.storico[String(meseIdx)];
+  m.voci.push({ id: uuid(), descrizione: "", importo: 0 });
+  saveStateNow();
+  render();
+}
+function onDeleteVoce(meseIdx, voceId) {
+  const m = state.storico[String(meseIdx)];
+  m.voci = m.voci.filter((v) => v.id !== voceId);
+  saveStateNow();
+  render();
+}
+function onAddRicorrente() {
+  state.ricorrenti.push({
+    id: uuid(),
+    descrizione: "",
+    importo: 0,
+    meseInizio: 1,
+    meseFine: 12,
+  });
+  saveStateNow();
+  render();
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fondo-pensione-${ANNO}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+function importJSON(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result));
+      if (!isValidState(parsed)) {
+        alert("File non valido: formato non riconosciuto.");
+        return;
+      }
+      // Ricostruisci storico assicurando tutti i mesi
+      for (let m = 1; m <= 12; m++) {
+        const k = String(m);
+        if (!parsed.storico[k]) parsed.storico[k] = { totaleOverride: null, voci: [] };
+      }
+      state = parsed;
+      saveStateNow();
+      render();
+      alert("Importazione completata.");
+    } catch (_e) {
+      alert("File non valido: impossibile leggere il JSON.");
+    }
+  };
+  reader.readAsText(file);
+}
+function resetTutto() {
+  if (!confirm("Sei sicuro? Verranno cancellati storico, una tantum e ricorrenti. Massimo deducibile e mese corrente torneranno ai default.")) return;
+  state = defaultState();
+  saveStateNow();
+  render();
+}
+
+// ---------- Wiring ----------
+function init() {
+  popolaSelectMesi();
+  render();
+
+  els.maxDed.addEventListener("input", (e) => {
+    state.maxDeducibile = toNum(e.target.value);
+    aggiornaSoloCalcoli();
+    saveStateDebounced();
+  });
+  els.meseCorr.addEventListener("change", (e) => {
+    state.meseCorrente = clamp(parseInt(e.target.value, 10) || 1, 1, 12);
+    saveStateNow();
+    render();
+  });
+  els.btnExport.addEventListener("click", exportJSON);
+  els.btnImport.addEventListener("click", () => els.fileImport.click());
+  els.fileImport.addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) importJSON(f);
+    e.target.value = "";
+  });
+  els.btnReset.addEventListener("click", resetTutto);
+  els.btnAddRic.addEventListener("click", onAddRicorrente);
+}
+
+init();
+</script>
+</body>
+</html>
