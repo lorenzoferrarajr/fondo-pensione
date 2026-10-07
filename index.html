@@ -220,7 +220,6 @@
     background: var(--surface-alt);
     padding: 8px 10px 12px;
   }
-  .month-table .totale-input { max-width: 130px; margin-left: auto; }
   .month-table .voci-list {
     display: flex;
     flex-direction: column;
@@ -231,6 +230,13 @@
     grid-template-columns: 1fr 130px auto;
     gap: 6px;
     align-items: center;
+  }
+  .month-table .voce-badge {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
   }
   .month-table .voci-actions {
     margin-top: 4px;
@@ -368,7 +374,7 @@
   </section>
 
   <section aria-labelledby="ric-title">
-    <h2 id="ric-title">Versamenti ricorrenti (mesi futuri)</h2>
+    <h2 id="ric-title">Versamenti ricorrenti</h2>
     <div class="ricorrenti-list" id="ricorrenti-list"></div>
     <div style="margin-top:12px;">
       <button id="btn-add-ricorrente" class="primary" type="button">+ Aggiungi ricorrente</button>
@@ -403,7 +409,7 @@ function toNum(v) {
 function defaultState() {
   const storico = {};
   for (let m = 1; m <= 12; m++) {
-    storico[String(m)] = { totaleOverride: null, voci: [] };
+    storico[String(m)] = { voci: [] };
   }
   return {
     maxDeducibile: 5300,
@@ -432,10 +438,17 @@ function loadState() {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if (!isValidState(parsed)) return defaultState();
-    // Ricostruisci storico assicurando che tutti i mesi siano presenti
+    // Ricostruisci storico assicurando che tutti i mesi siano presenti;
+    // migra il vecchio totaleOverride in una voce.
     for (let m = 1; m <= 12; m++) {
       const k = String(m);
-      if (!parsed.storico[k]) parsed.storico[k] = { totaleOverride: null, voci: [] };
+      if (!parsed.storico[k]) parsed.storico[k] = { voci: [] };
+      if (!Array.isArray(parsed.storico[k].voci)) parsed.storico[k].voci = [];
+      const d = parsed.storico[k];
+      if (d.totaleOverride !== undefined && d.totaleOverride !== null && d.totaleOverride !== 0 && d.voci.length === 0) {
+        d.voci = [{ id: uuid(), descrizione: "", importo: toNum(d.totaleOverride) }];
+      }
+      delete d.totaleOverride;
     }
     return parsed;
   } catch (_e) {
@@ -457,6 +470,13 @@ function saveStateNow() {
 
 let state = loadState();
 
+// Stato di espansione delle voci (solo UI, non persistito)
+const expandedMesi = new Set();
+for (let m = 1; m <= 12; m++) {
+  const d = state.storico[String(m)];
+  if (d && d.voci && d.voci.length > 0) expandedMesi.add(m);
+}
+
 // ---------- Calcoli ----------
 function totaleVoci(voci) {
   let s = 0;
@@ -465,23 +485,19 @@ function totaleVoci(voci) {
 }
 function totaleMeseStorico(meseIdx) {
   const m = state.storico[String(meseIdx)];
-  if (!m) return 0;
-  if (m.voci && m.voci.length > 0) return totaleVoci(m.voci);
-  return toNum(m.totaleOverride);
+  return m && m.voci ? totaleVoci(m.voci) : 0;
 }
-function totaleMesePrevisione(meseIdx) {
-  let s = 0;
-  for (const r of state.ricorrenti) {
-    if (meseIdx >= r.meseInizio && meseIdx <= r.meseFine) s += toNum(r.importo);
-  }
-  return s;
+function vociRicorrenti(meseIdx) {
+  return state.ricorrenti
+    .filter((r) => meseIdx >= r.meseInizio && meseIdx <= r.meseFine && toNum(r.importo) > 0)
+    .map((r) => ({ id: r.id, descrizione: r.descrizione, importo: r.importo, ricorrente: true }));
 }
 function calcolaCumulativi() {
   const out = [];
   let cum = 0;
   for (let m = 1; m <= 12; m++) {
     const isPast = m <= state.meseCorrente;
-    const tot = isPast ? totaleMeseStorico(m) : totaleMesePrevisione(m);
+    const tot = totaleMeseStorico(m) + totaleVoci(vociRicorrenti(m));
     cum += tot;
     out.push({ mese: m, isPast, totale: tot, cumulato: cum });
   }
@@ -551,7 +567,6 @@ function renderTabellaMesi(cumulativi) {
     const m = row.mese;
     const mData = state.storico[String(m)];
     const isPast = row.isPast;
-    const hasVoci = mData.voci && mData.voci.length > 0;
     const tr = document.createElement("tr");
     if (!isPast) tr.classList.add("future");
 
@@ -561,40 +576,21 @@ function renderTabellaMesi(cumulativi) {
     nomeSpan.className = "mese-name";
     nomeSpan.textContent = MESI_NOMI[m - 1];
     tdNome.appendChild(nomeSpan);
-    if (isPast) {
+    {
       const btnToggle = document.createElement("button");
       btnToggle.type = "button";
       btnToggle.className = "toggle-voci";
       btnToggle.dataset.mese = String(m);
-      btnToggle.textContent = hasVoci ? "− nascondi voci" : "⊕ dettaglia";
+      btnToggle.textContent = expandedMesi.has(m) ? "− nascondi voci" : "⊕ dettaglia";
       btnToggle.addEventListener("click", () => onToggleVoci(m));
       tdNome.appendChild(btnToggle);
     }
     tr.appendChild(tdNome);
 
-    // Cella totale (input se storico, testo se futuro)
+    // Cella totale (solo lettura: somma di voci manuali + ricorrenti)
     const tdTot = document.createElement("td");
     tdTot.className = "num";
-    if (isPast) {
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = "0";
-      input.step = "0.01";
-      input.inputMode = "decimal";
-      input.className = "totale-input";
-      input.placeholder = "0,00";
-      if (hasVoci) {
-        input.value = totaleVoci(mData.voci).toFixed(2);
-        input.readOnly = true;
-        input.title = "Totale calcolato dalle voci dettagliate";
-      } else {
-        input.value = mData.totaleOverride !== null && mData.totaleOverride !== undefined ? String(mData.totaleOverride) : "";
-      }
-      input.addEventListener("input", (ev) => onTotaleMeseChange(m, ev.target.value));
-      tdTot.appendChild(input);
-    } else {
-      tdTot.textContent = EURO.format(row.totale);
-    }
+    tdTot.textContent = EURO.format(row.totale);
     tr.appendChild(tdTot);
 
     // Cella cumulato
@@ -606,7 +602,7 @@ function renderTabellaMesi(cumulativi) {
     els.tbody.appendChild(tr);
 
     // Riga voci (se espanso)
-    if (isPast && hasVoci) {
+    if (expandedMesi.has(m)) {
       const trVoci = document.createElement("tr");
       trVoci.classList.add("voci-row");
       const td = document.createElement("td");
@@ -615,6 +611,9 @@ function renderTabellaMesi(cumulativi) {
       list.className = "voci-list";
       for (const voce of mData.voci) {
         list.appendChild(renderVoceRow(m, voce));
+      }
+      for (const rv of vociRicorrenti(m)) {
+        list.appendChild(renderVoceRow(m, rv, true));
       }
       const actions = document.createElement("div");
       actions.className = "voci-actions";
@@ -631,18 +630,23 @@ function renderTabellaMesi(cumulativi) {
   }
 }
 
-function renderVoceRow(meseIdx, voce) {
+function renderVoceRow(meseIdx, voce, readonly) {
   const wrap = document.createElement("div");
   wrap.className = "voce";
+  if (readonly) wrap.classList.add("ricorrente");
 
   const inputDesc = document.createElement("input");
   inputDesc.type = "text";
   inputDesc.placeholder = "Descrizione";
   inputDesc.value = voce.descrizione || "";
-  inputDesc.addEventListener("input", (ev) => {
-    voce.descrizione = ev.target.value;
-    saveStateDebounced();
-  });
+  if (readonly) {
+    inputDesc.readOnly = true;
+  } else {
+    inputDesc.addEventListener("input", (ev) => {
+      voce.descrizione = ev.target.value;
+      saveStateDebounced();
+    });
+  }
 
   const inputImp = document.createElement("input");
   inputImp.type = "number";
@@ -651,23 +655,33 @@ function renderVoceRow(meseIdx, voce) {
   inputImp.inputMode = "decimal";
   inputImp.placeholder = "0,00";
   inputImp.value = voce.importo !== undefined && voce.importo !== null && voce.importo !== "" ? String(voce.importo) : "";
-  inputImp.addEventListener("input", (ev) => {
-    voce.importo = toNum(ev.target.value);
-    // Aggiorna solo i numeri (non ridisegnare la lista voci, altrimenti perdi focus)
-    aggiornaSoloCalcoli();
-    saveStateDebounced();
-  });
-
-  const btnDel = document.createElement("button");
-  btnDel.type = "button";
-  btnDel.className = "icon danger";
-  btnDel.title = "Rimuovi voce";
-  btnDel.textContent = "✕";
-  btnDel.addEventListener("click", () => onDeleteVoce(meseIdx, voce.id));
+  if (readonly) {
+    inputImp.readOnly = true;
+  } else {
+    inputImp.addEventListener("input", (ev) => {
+      voce.importo = toNum(ev.target.value);
+      // Aggiorna solo i numeri (non ridisegnare la lista voci, altrimenti perdi focus)
+      aggiornaSoloCalcoli();
+      saveStateDebounced();
+    });
+  }
 
   wrap.appendChild(inputDesc);
   wrap.appendChild(inputImp);
-  wrap.appendChild(btnDel);
+  if (readonly) {
+    const badge = document.createElement("span");
+    badge.className = "voce-badge";
+    badge.textContent = "ricorrente";
+    wrap.appendChild(badge);
+  } else {
+    const btnDel = document.createElement("button");
+    btnDel.type = "button";
+    btnDel.className = "icon danger";
+    btnDel.title = "Rimuovi voce";
+    btnDel.textContent = "✕";
+    btnDel.addEventListener("click", () => onDeleteVoce(meseIdx, voce.id));
+    wrap.appendChild(btnDel);
+  }
   return wrap;
 }
 
@@ -676,7 +690,7 @@ function renderRicorrenti() {
   if (state.ricorrenti.length === 0) {
     const p = document.createElement("div");
     p.className = "empty-hint";
-    p.textContent = "Nessun versamento ricorrente. Aggiungine uno per stimare i mesi futuri.";
+    p.textContent = "Nessun versamento ricorrente. Aggiungine uno per inserire una voce ricorrente nei mesi.";
     els.ricList.appendChild(p);
     return;
   }
@@ -769,29 +783,14 @@ function mesiSelect(value) {
 function aggiornaSoloCalcoli() {
   const cum = calcolaCumulativi();
   renderDashboard(cum);
-  // Aggiorna celle cumulato e celle totale dei mesi futuri
   const trs = els.tbody.querySelectorAll("tr:not(.voci-row)");
   trs.forEach((tr, idx) => {
     const row = cum[idx];
     if (!row) return;
     const cells = tr.children;
     // cells: [nome, totale, cumulato]
-    if (!row.isPast) {
-      cells[1].textContent = EURO.format(row.totale);
-    }
+    cells[1].textContent = EURO.format(row.totale);
     cells[2].textContent = EURO.format(row.cumulato);
-  });
-  // Se un mese storico ha voci espanse, aggiorna il valore del suo input "totale" (readonly)
-  // (gli input editabili degli importi delle voci sono già aggiornati dall'utente)
-  const inputs = els.tbody.querySelectorAll("input.totale-input[readonly]");
-  inputs.forEach((inp) => {
-    const tr = inp.closest("tr");
-    if (!tr) return;
-    const trsAll = Array.from(els.tbody.children).filter((x) => !x.classList.contains("voci-row"));
-    const meseIdx = trsAll.indexOf(tr) + 1;
-    if (meseIdx >= 1 && meseIdx <= 12) {
-      inp.value = totaleMeseStorico(meseIdx).toFixed(2);
-    }
   });
 }
 
@@ -804,30 +803,9 @@ function render() {
 }
 
 // ---------- Handlers ----------
-function onTotaleMeseChange(meseIdx, raw) {
-  const m = state.storico[String(meseIdx)];
-  if (raw === "") m.totaleOverride = null;
-  else m.totaleOverride = toNum(raw);
-  aggiornaSoloCalcoli();
-  saveStateDebounced();
-}
 function onToggleVoci(meseIdx) {
-  const m = state.storico[String(meseIdx)];
-  if (m.voci && m.voci.length > 0) {
-    // Collassa: se c'è solo una voce, riporta il suo importo come totaleOverride; altrimenti mantieni la somma
-    const totale = totaleVoci(m.voci);
-    m.voci = [];
-    m.totaleOverride = totale > 0 ? totale : null;
-  } else {
-    // Espandi: se c'è un totaleOverride, creane una voce iniziale per non perdere il dato
-    if (m.totaleOverride !== null && m.totaleOverride !== undefined && m.totaleOverride !== 0) {
-      m.voci = [{ id: uuid(), descrizione: "", importo: toNum(m.totaleOverride) }];
-    } else {
-      m.voci = [{ id: uuid(), descrizione: "", importo: 0 }];
-    }
-    m.totaleOverride = null;
-  }
-  saveStateNow();
+  if (expandedMesi.has(meseIdx)) expandedMesi.delete(meseIdx);
+  else expandedMesi.add(meseIdx);
   render();
 }
 function onAddVoce(meseIdx) {
@@ -874,10 +852,16 @@ function importJSON(file) {
         alert("File non valido: formato non riconosciuto.");
         return;
       }
-      // Ricostruisci storico assicurando tutti i mesi
+      // Ricostruisci storico assicurando tutti i mesi; migra il vecchio totaleOverride
       for (let m = 1; m <= 12; m++) {
         const k = String(m);
-        if (!parsed.storico[k]) parsed.storico[k] = { totaleOverride: null, voci: [] };
+        if (!parsed.storico[k]) parsed.storico[k] = { voci: [] };
+        if (!Array.isArray(parsed.storico[k].voci)) parsed.storico[k].voci = [];
+        const d = parsed.storico[k];
+        if (d.totaleOverride !== undefined && d.totaleOverride !== null && d.totaleOverride !== 0 && d.voci.length === 0) {
+          d.voci = [{ id: uuid(), descrizione: "", importo: toNum(d.totaleOverride) }];
+        }
+        delete d.totaleOverride;
       }
       state = parsed;
       saveStateNow();
