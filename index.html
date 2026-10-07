@@ -377,7 +377,7 @@
     <div class="settings-grid">
       <div class="field">
         <label for="max-deducibile">Massimo deducibile (€)</label>
-        <input type="number" id="max-deducibile" min="0" step="0.01" inputmode="decimal">
+        <input type="text" id="max-deducibile" inputmode="decimal">
         <span class="field-hint">Limite annuo deducibile per i contributi al fondo pensione.</span>
       </div>
       <div class="field">
@@ -441,7 +441,7 @@
   <div class="footer-note">I dati restano sul tuo browser (localStorage). Usa Esporta JSON per salvare un backup.</div>
 </div>
 
-<div id="toast" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 "use strict";
@@ -460,7 +460,8 @@ function uuid() {
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 function toNum(v) {
   if (v === "" || v === null || v === undefined) return 0;
-  const n = Number(v);
+  // ponytail: gestisce la virgola decimale; non supporta i separatori delle migliaia ("1.234,56")
+  const n = Number(String(v).replace(",", "."));
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
@@ -651,8 +652,10 @@ function renderTabellaMesi(cumulativi) {
       btnToggle.type = "button";
       btnToggle.className = "toggle-voci";
       btnToggle.dataset.mese = String(m);
-      btnToggle.textContent = expandedMesi.has(m) ? "Nascondi voci" : "Mostra voci";
-      btnToggle.setAttribute("aria-expanded", expandedMesi.has(m) ? "true" : "false");
+      const aperto = expandedMesi.has(m);
+      btnToggle.textContent = aperto ? "Nascondi voci" : "Mostra voci";
+      btnToggle.setAttribute("aria-label", (aperto ? "Nascondi" : "Mostra") + " voci di " + MESI_NOMI[m - 1]);
+      btnToggle.setAttribute("aria-expanded", aperto ? "true" : "false");
       btnToggle.setAttribute("aria-controls", "voci-" + m);
       btnToggle.addEventListener("click", () => onToggleVoci(m));
       tdNome.appendChild(btnToggle);
@@ -706,11 +709,13 @@ function renderTabellaMesi(cumulativi) {
 function renderVoceRow(meseIdx, voce, readonly) {
   const wrap = document.createElement("div");
   wrap.className = "voce";
+  wrap.dataset.voceId = voce.id || "";
   if (readonly) wrap.classList.add("ricorrente");
 
   const inputDesc = document.createElement("input");
   inputDesc.type = "text";
   inputDesc.placeholder = "Descrizione";
+  inputDesc.setAttribute("aria-label", "Descrizione");
   inputDesc.value = voce.descrizione || "";
   if (readonly) {
     inputDesc.readOnly = true;
@@ -722,11 +727,10 @@ function renderVoceRow(meseIdx, voce, readonly) {
   }
 
   const inputImp = document.createElement("input");
-  inputImp.type = "number";
-  inputImp.min = "0";
-  inputImp.step = "0.01";
+  inputImp.type = "text";
   inputImp.inputMode = "decimal";
   inputImp.placeholder = "0,00";
+  inputImp.setAttribute("aria-label", "Importo (€)");
   inputImp.value = voce.importo !== undefined && voce.importo !== null && voce.importo !== "" ? String(voce.importo) : "";
   if (readonly) {
     inputImp.readOnly = true;
@@ -751,7 +755,7 @@ function renderVoceRow(meseIdx, voce, readonly) {
     btnDel.type = "button";
     btnDel.className = "icon danger";
     btnDel.title = "Rimuovi voce";
-    btnDel.setAttribute("aria-label", "Rimuovi voce");
+    btnDel.setAttribute("aria-label", "Rimuovi voce" + (voce.descrizione ? " " + voce.descrizione : ""));
     btnDel.textContent = "✕";
     btnDel.addEventListener("click", () => onDeleteVoce(meseIdx, voce.id));
     wrap.appendChild(btnDel);
@@ -781,14 +785,16 @@ function renderRicorrenteCard(r) {
   const inDesc = document.createElement("input");
   inDesc.type = "text";
   inDesc.placeholder = "Es. Trattenuta busta paga";
+  inDesc.setAttribute("aria-label", "Descrizione");
   inDesc.value = r.descrizione || "";
   inDesc.addEventListener("input", (e) => { r.descrizione = e.target.value; saveStateDebounced(); });
   fDesc.appendChild(inDesc);
 
   const fImp = field("Importo mensile (€)");
   const inImp = document.createElement("input");
-  inImp.type = "number"; inImp.min = "0"; inImp.step = "0.01"; inImp.inputMode = "decimal";
+  inImp.type = "text"; inImp.inputMode = "decimal";
   inImp.placeholder = "0,00";
+  inImp.setAttribute("aria-label", "Importo mensile (€)");
   inImp.value = r.importo !== undefined && r.importo !== null && r.importo !== "" ? String(r.importo) : "";
   inImp.addEventListener("input", (e) => { r.importo = toNum(e.target.value); aggiornaSoloCalcoli(); saveStateDebounced(); });
   fImp.appendChild(inImp);
@@ -817,7 +823,7 @@ function renderRicorrenteCard(r) {
   btnDel.type = "button";
   btnDel.className = "icon danger";
   btnDel.title = "Rimuovi ricorrente";
-  btnDel.setAttribute("aria-label", "Rimuovi ricorrente");
+  btnDel.setAttribute("aria-label", "Rimuovi ricorrente" + (r.descrizione ? " " + r.descrizione : ""));
   btnDel.textContent = "✕";
   btnDel.addEventListener("click", () => {
     const idx = state.ricorrenti.findIndex((x) => x.id === r.id);
@@ -889,12 +895,20 @@ function onToggleVoci(meseIdx) {
   if (expandedMesi.has(meseIdx)) expandedMesi.delete(meseIdx);
   else expandedMesi.add(meseIdx);
   render();
+  const btn = document.querySelector('button.toggle-voci[data-mese="' + meseIdx + '"]');
+  if (btn) btn.focus();
 }
 function onAddVoce(meseIdx) {
   const m = state.storico[String(meseIdx)];
-  m.voci.push({ id: uuid(), descrizione: "", importo: 0 });
+  const nuova = { id: uuid(), descrizione: "", importo: 0 };
+  m.voci.push(nuova);
   saveStateNow();
   render();
+  const row = document.querySelector('.voce[data-voce-id="' + nuova.id + '"]');
+  if (row) {
+    const inp = row.querySelector("input[type='text']");
+    if (inp) inp.focus();
+  }
 }
 function onDeleteVoce(meseIdx, voceId) {
   const m = state.storico[String(meseIdx)];
@@ -934,6 +948,7 @@ function mostraToast(msg, annulla) {
     btn.textContent = "Annulla";
     btn.addEventListener("click", () => { annulla(); nascondiToast(); });
     t.appendChild(btn);
+    btn.focus();
   }
   toastTimer = setTimeout(nascondiToast, 6000);
 }
@@ -989,9 +1004,15 @@ function importJSON(file) {
 }
 function resetTutto() {
   if (!confirm("Sei sicuro? Verranno cancellati tutti i versamenti (voci e ricorrenti). Massimo deducibile e mese corrente torneranno ai default.")) return;
+  const prima = state;
   state = defaultState();
   saveStateNow();
   render();
+  mostraToast("Dati azzerati", () => {
+    state = prima;
+    saveStateNow();
+    render();
+  });
 }
 
 // ---------- Wiring ----------
