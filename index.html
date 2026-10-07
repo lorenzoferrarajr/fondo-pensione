@@ -3,16 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
 <title>Fondo Pensione — Calcolo deducibilità</title>
+<script>
+  // Imposta il tema prima del rendering per evitare un cambio di colore all'apertura.
+  try {
+    const preference = localStorage.getItem("fondo-pensione/theme") || "light";
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = preference === "dark" || (preference === "auto" && systemDark) ? "dark" : "light";
+  } catch (_e) {
+    document.documentElement.dataset.theme = "light";
+  }
+</script>
 <style>
   :root {
+    color-scheme: light;
     --bg: #f7f7f8;
     --surface: #ffffff;
     --surface-alt: #f0f1f3;
     --border: #e2e4e9;
     --text: #1a1c20;
-    --text-dim: #6b7280;
+    --text-dim: #596272;
     --accent: #3b6ef5;
     --accent-soft: #e6edff;
     --accent-strong: #2b56c4;
@@ -26,8 +36,8 @@
     --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
+  :root[data-theme="dark"] {
+      color-scheme: dark;
       --bg: #0f1115;
       --surface: #181b21;
       --surface-alt: #1f232b;
@@ -44,7 +54,6 @@
       --danger: #ff6b5e;
       --future-bg: #14171d;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
-    }
   }
 
   * { box-sizing: border-box; }
@@ -64,7 +73,7 @@
   header.app-header {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 18px;
@@ -78,6 +87,16 @@
     color: var(--text-dim);
     font-size: 0.95rem;
   }
+  .header-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header-controls label { font-size: 0.9rem; color: var(--text-dim); }
+  .header-controls select { width: auto; min-width: 130px; }
+  .year-archive { display: flex; align-items: center; gap: 8px; }
+  .year-archive[hidden], .anno[hidden] { display: none; }
 
   section {
     background: var(--surface);
@@ -126,6 +145,7 @@
     padding: 8px 10px;
     width: 100%;
     min-width: 0;
+    height: 44px;
   }
   input[type="number"]:focus, input[type="text"]:focus, select:focus {
     outline: 2px solid var(--accent);
@@ -190,6 +210,11 @@
   .stat.accent {
     background: var(--accent-soft);
   }
+  .stat .explanation {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    margin: 5px 0 0;
+  }
 
   .banner-warn {
     margin-top: 12px;
@@ -223,12 +248,23 @@
     background: transparent;
   }
   .month-table td.num, .month-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .month-table tr.future > td { background: var(--future-bg); color: var(--text-dim); }
+  .month-table tr.future > td { color: var(--text-dim); }
   .month-table tr.future .mese-name { color: var(--text); }
+  .month-table tbody tr.month-row > td {
+    background: var(--surface-alt);
+    border-top: 12px solid var(--surface);
+    border-bottom: 0;
+    padding: 14px 12px;
+  }
+  .month-table tbody tr.month-row:first-child > td { border-top-width: 8px; }
+  .month-table tbody tr.month-row:not(.expanded) > td { border-bottom: 1px solid var(--border); }
   .month-table tbody tr.voci-row > td {
     background: var(--surface-alt);
-    padding: 8px 10px 12px;
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px 16px;
   }
+  .month-table tbody tr.month-row.future > td,
+  .month-table tbody tr.voci-row.future > td { background: var(--future-bg); }
   .month-table .voci-list {
     display: flex;
     flex-direction: column;
@@ -236,13 +272,33 @@
   }
   .month-table .voce {
     display: grid;
-    grid-template-columns: 1fr 130px 84px;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 130px 160px;
+    gap: 10px;
     align-items: center;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: 8px;
   }
-  .month-table .voce button.icon {
-    justify-self: start;
+  .month-table .voce.manual {
+    background: var(--surface);
+    border: 1px solid var(--border);
   }
+  .month-table .voce.ricorrente {
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+  }
+  .month-table .voce-description { min-width: 0; overflow-wrap: anywhere; }
+  .month-table .voce-amount {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .month-table .voce-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-start;
+  }
+  .month-table .voce > .input-error { grid-column: 2; grid-row: 2; }
   .month-table .voce-badge {
     font-size: 0.68rem;
     color: var(--text-dim);
@@ -251,9 +307,9 @@
     white-space: nowrap;
   }
   .month-table .voci-actions {
-    margin-top: 4px;
+    margin-top: 8px;
   }
-  .month-table .mese-name { font-weight: 500; }
+  .month-table .mese-name { font-size: 1rem; font-weight: 650; }
   .month-table .toggle-voci {
     margin-left: 6px;
     font-size: 0.85rem;
@@ -267,21 +323,42 @@
   .ricorrente-card {
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px;
+    padding: 14px;
     background: var(--surface-alt);
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .ricorrente-card .row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 12px;
   }
   .ricorrente-card .actions {
     display: flex;
     justify-content: flex-end;
   }
+  .months-picker { min-width: 0; }
+  .months-picker summary {
+    cursor: pointer;
+    color: var(--text);
+    font-weight: 600;
+    padding: 8px 0;
+  }
+  .months-picker summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .months-picker fieldset { border: 0; margin: 0; padding: 8px 0 0; }
+  .months-picker legend { font-size: 0.82rem; color: var(--text-dim); padding: 0 0 8px; }
+  .months-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .month-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 7px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .month-option:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+  .month-option:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .month-option input { width: auto; margin: 0; accent-color: var(--accent-strong); }
+  .months-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .empty-hint {
     color: var(--text-dim);
     font-size: 0.9rem;
@@ -297,20 +374,24 @@
   @media (min-width: 720px) {
     header.app-header h1 { font-size: 1.7rem; }
     .settings-grid {
-      grid-template-columns: 1fr 1fr auto;
-      align-items: end;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
     }
-    .settings-actions { margin-top: 0; }
+    .settings-actions { grid-column: 1 / -1; margin-top: 0; }
     .dashboard {
       grid-template-columns: repeat(3, 1fr);
     }
     .ricorrente-card {
-      grid-template-columns: 2fr 1fr 1fr 1fr auto;
+      grid-template-columns: minmax(0, 2fr) minmax(150px, 1fr) auto;
       align-items: end;
-      gap: 10px;
+      gap: 12px;
     }
-    .ricorrente-card .row { display: contents; }
     .ricorrente-card .actions { justify-content: center; }
+    .ricorrente-card .months-picker { grid-column: 1 / -1; }
+    .months-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1000px) {
+    .months-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   }
 
   .file-input-hidden { display: none; }
@@ -333,7 +414,10 @@
   .banner-danger[hidden] { display: none; }
 
   .field-hint { font-size: 0.78rem; color: var(--text-dim); }
+  .input-error { color: var(--danger); font-size: 0.8rem; margin-top: 4px; }
+  .input-error[hidden] { display: none; }
   .section-hint { font-size: 0.85rem; color: var(--text-dim); margin: -6px 0 12px; }
+  .legacy-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
   .sr-only {
     position: absolute; width: 1px; height: 1px;
@@ -360,6 +444,16 @@
     button { min-height: 44px; }
     button.icon { min-width: 44px; min-height: 44px; }
   }
+  @media (max-width: 600px) {
+    .month-table .voce { grid-template-columns: minmax(0, 1fr) auto; }
+    .month-table .voce > .voce-amount { grid-column: 2; grid-row: 1; }
+    .month-table .voce > .voce-actions,
+    .month-table .voce > .voce-badge { grid-column: 1 / -1; grid-row: 2; }
+    .month-table .voce.is-editing > input:first-child { grid-column: 1 / -1; grid-row: 1; }
+    .month-table .voce.is-editing > input:nth-child(2) { grid-column: 1; grid-row: 2; }
+    .month-table .voce.is-editing > .voce-actions { grid-column: 2; grid-row: 2; }
+    .month-table .voce > .input-error { grid-column: 1 / -1; grid-row: 3; }
+  }
 </style>
 </head>
 <body>
@@ -367,18 +461,39 @@
 
   <header class="app-header">
     <h1>Fondo Pensione — Calcolo deducibilità</h1>
-    <span class="anno" id="anno-corrente"></span>
+    <div class="header-controls">
+      <span class="anno" id="anno-corrente"></span>
+      <div class="year-archive" id="year-archive" hidden>
+        <label for="anno-selezionato">Anno salvato</label>
+        <select id="anno-selezionato"></select>
+      </div>
+      <label for="tema">Tema</label>
+      <select id="tema">
+        <option value="light">Chiaro</option>
+        <option value="dark">Scuro</option>
+        <option value="auto">Automatico</option>
+      </select>
+    </div>
   </header>
 
   <div class="banner-danger" id="banner-errore" role="alert" hidden></div>
+  <div class="banner-warn" id="banner-legacy" role="status" hidden>
+    <div id="legacy-message"></div>
+    <div class="legacy-actions">
+      <button id="btn-legacy-export" type="button">Scarica i dati senza anno</button>
+      <button id="btn-legacy-use" type="button">Usa per l'anno selezionato</button>
+      <button id="btn-legacy-dismiss" type="button">Ignora</button>
+    </div>
+  </div>
 
   <section aria-labelledby="imp-title">
     <h2 id="imp-title">Impostazioni</h2>
     <div class="settings-grid">
       <div class="field">
         <label for="max-deducibile">Massimo deducibile (€)</label>
-        <input type="text" id="max-deducibile" inputmode="decimal">
-        <span class="field-hint">Limite annuo deducibile per i contributi al fondo pensione.</span>
+        <input type="text" id="max-deducibile" inputmode="decimal" aria-describedby="max-deducibile-hint max-deducibile-error">
+        <span class="field-hint" id="max-deducibile-hint">Limite annuo deducibile per i contributi al fondo pensione.</span>
+        <span class="input-error" id="max-deducibile-error" role="alert" hidden></span>
       </div>
       <div class="field">
         <label for="mese-corrente">Mese corrente</label>
@@ -405,8 +520,9 @@
         <div class="value" id="stat-prev">—</div>
       </div>
       <div class="stat accent">
-        <div class="label">Residuo da versare</div>
+        <div class="label">Residuo deducibile previsto</div>
         <div class="value" id="stat-residuo">—</div>
+        <p class="explanation">Rispetto al limite annuo, considerando anche i versamenti previsti fino a dicembre.</p>
       </div>
     </div>
     <div class="banner-warn" id="banner-sforamento" role="status" hidden></div>
@@ -431,14 +547,14 @@
 
   <section aria-labelledby="ric-title">
     <h2 id="ric-title">Versamenti ricorrenti</h2>
-    <p class="section-hint">Generano una voce in sola lettura in ogni mese del periodo indicato.</p>
+    <p class="section-hint">Ogni importo si applica solo ai mesi selezionati, anche non consecutivi.</p>
     <div class="ricorrenti-list" id="ricorrenti-list"></div>
     <div style="margin-top:12px;">
       <button id="btn-add-ricorrente" class="primary" type="button">+ Aggiungi ricorrente</button>
     </div>
   </section>
 
-  <div class="footer-note">I dati restano sul tuo browser (localStorage). Usa Esporta JSON per salvare un backup.</div>
+  <div class="footer-note">L'anno corrente cambia automaticamente a gennaio. I dati restano sul tuo browser (localStorage); usa Esporta JSON per un backup.</div>
 </div>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
@@ -447,10 +563,26 @@
 "use strict";
 
 // ---------- Costanti ----------
-const STORAGE_KEY = "fondo-pensione/v1";
+const LEGACY_STORAGE_KEY = "fondo-pensione/v1";
 const MESI_NOMI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-const ANNO = new Date().getFullYear();
+const MESI_BREVI = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+const CURRENT_YEAR = new Date().getFullYear();
+let ANNO = CURRENT_YEAR;
+function storageKey() { return `fondo-pensione/v2/${ANNO}`; }
+function legacyHandledKey() { return `fondo-pensione/v2/legacy-handled/${ANNO}`; }
+const THEME_KEY = "fondo-pensione/theme";
+const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
 const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+
+function savedTheme() {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return ["light", "dark", "auto"].includes(value) ? value : "light";
+  } catch (_e) { return "light"; }
+}
+function applyTheme(preference) {
+  document.documentElement.dataset.theme = preference === "dark" || (preference === "auto" && systemTheme.matches) ? "dark" : "light";
+}
 
 // ---------- Utilità ----------
 function uuid() {
@@ -458,11 +590,28 @@ function uuid() {
   return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+function parseAmount(v) {
+  if (typeof v === "number") return { valid: Number.isFinite(v) && v >= 0, value: v };
+  const raw = String(v ?? "").trim();
+  if (raw === "") return { valid: true, value: 0 };
+  const plain = /^\d+(?:[.,]\d{1,2})?$/;
+  const grouped = /^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/;
+  if (!plain.test(raw) && !grouped.test(raw)) return { valid: false, value: 0 };
+  const normalized = grouped.test(raw) ? raw.replaceAll(".", "").replace(",", ".") : raw.replace(",", ".");
+  const value = Number(normalized);
+  return { valid: Number.isFinite(value) && value >= 0, value };
+}
 function toNum(v) {
-  if (v === "" || v === null || v === undefined) return 0;
-  // ponytail: gestisce la virgola decimale; non supporta i separatori delle migliaia ("1.234,56")
-  const n = Number(String(v).replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  const parsed = parseAmount(v);
+  return parsed.valid ? parsed.value : 0;
+}
+function setAmountError(input, message) {
+  input.setAttribute("aria-invalid", message ? "true" : "false");
+  const error = input.parentElement.querySelector(".input-error");
+  if (error) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
 }
 
 // ---------- Stato ----------
@@ -472,8 +621,9 @@ function defaultState() {
     storico[String(m)] = { voci: [] };
   }
   return {
+    anno: ANNO,
     maxDeducibile: 5300,
-    meseCorrente: new Date().getMonth() + 1, // 1..12
+    meseCorrente: ANNO === CURRENT_YEAR ? new Date().getMonth() + 1 : 12, // 1..12
     storico,
     ricorrenti: [],
   };
@@ -481,23 +631,41 @@ function defaultState() {
 
 function isValidState(s) {
   if (!s || typeof s !== "object") return false;
-  if (typeof s.maxDeducibile !== "number") return false;
+  if (s.anno !== undefined && (!Number.isInteger(s.anno) || s.anno < 1900)) return false;
+  if (typeof s.maxDeducibile !== "number" || !Number.isFinite(s.maxDeducibile) || s.maxDeducibile < 0) return false;
   if (typeof s.meseCorrente !== "number" || s.meseCorrente < 1 || s.meseCorrente > 12) return false;
   if (!s.storico || typeof s.storico !== "object") return false;
   for (let m = 1; m <= 12; m++) {
     const k = String(m);
     if (!s.storico[k] || !Array.isArray(s.storico[k].voci)) return false;
+    if (s.storico[k].voci.some((v) => !v || !parseAmount(v.importo).valid)) return false;
   }
   if (!Array.isArray(s.ricorrenti)) return false;
+  if (s.ricorrenti.some((r) => {
+    if (!r || !parseAmount(r.importo).valid) return true;
+    if (Array.isArray(r.mesi)) return r.mesi.some((m) => !Number.isInteger(m) || m < 1 || m > 12) || new Set(r.mesi).size !== r.mesi.length;
+    return !Number.isInteger(r.meseInizio) || !Number.isInteger(r.meseFine) || r.meseInizio < 1 || r.meseFine > 12 || r.meseInizio > r.meseFine;
+  })) return false;
   return true;
+}
+
+function normalizeRecurringMonths(s) {
+  for (const r of s.ricorrenti) {
+    if (!Array.isArray(r.mesi)) {
+      r.mesi = Array.from({ length: r.meseFine - r.meseInizio + 1 }, (_, i) => r.meseInizio + i);
+    }
+    delete r.meseInizio;
+    delete r.meseFine;
+  }
+  return s;
 }
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey());
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    if (!isValidState(parsed)) return defaultState();
+    if (!isValidState(parsed) || parsed.anno !== ANNO) return defaultState();
     // Ricostruisci storico assicurando che tutti i mesi siano presenti;
     // migra il vecchio totaleOverride in una voce.
     for (let m = 1; m <= 12; m++) {
@@ -510,7 +678,7 @@ function loadState() {
       }
       delete d.totaleOverride;
     }
-    return parsed;
+    return normalizeRecurringMonths(parsed);
   } catch (_e) {
     return defaultState();
   }
@@ -519,7 +687,7 @@ function loadState() {
 let saveTimer = null;
 function persistState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(storageKey(), JSON.stringify(state));
     const b = document.getElementById("banner-errore");
     if (b) b.hidden = true;
   } catch (_e) {
@@ -541,12 +709,32 @@ function saveStateNow() {
 
 let state = loadState();
 
+function legacyData() {
+  try {
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return isValidState(parsed) ? normalizeRecurringMonths(parsed) : null;
+  } catch (_e) { return null; }
+}
+function renderLegacyBanner() {
+  const banner = document.getElementById("banner-legacy");
+  let handled = false;
+  try { handled = localStorage.getItem(legacyHandledKey()) === "1"; } catch (_e) { /* storage unavailable */ }
+  banner.hidden = handled || !legacyData();
+  if (!banner.hidden) {
+    document.getElementById("legacy-message").textContent = `Sono presenti dati salvati senza anno. Scaricali come backup oppure associali al ${ANNO} solo se appartengono a quell'anno.`;
+  }
+}
+function markLegacyHandled() {
+  try { localStorage.setItem(legacyHandledKey(), "1"); } catch (_e) { /* storage unavailable */ }
+  renderLegacyBanner();
+}
+
 // Stato di espansione delle voci (solo UI, non persistito)
 const expandedMesi = new Set();
-for (let m = 1; m <= 12; m++) {
-  const d = state.storico[String(m)];
-  if (d && d.voci && d.voci.length > 0) expandedMesi.add(m);
-}
+expandedMesi.add(state.meseCorrente);
+let editingVoceKey = null;
 
 // ---------- Calcoli ----------
 function totaleVoci(voci) {
@@ -560,7 +748,7 @@ function totaleMeseStorico(meseIdx) {
 }
 function vociRicorrenti(meseIdx) {
   return state.ricorrenti
-    .filter((r) => meseIdx >= r.meseInizio && meseIdx <= r.meseFine && toNum(r.importo) > 0)
+    .filter((r) => r.mesi.includes(meseIdx) && toNum(r.importo) > 0)
     .map((r) => ({ id: r.id, descrizione: r.descrizione, importo: r.importo, ricorrente: true }));
 }
 function calcolaCumulativi() {
@@ -587,6 +775,8 @@ function calcolaRiassunto(cumulativi) {
 // ---------- Rendering ----------
 const els = {
   anno: document.getElementById("anno-corrente"),
+  yearArchive: document.getElementById("year-archive"),
+  yearSelect: document.getElementById("anno-selezionato"),
   maxDed: document.getElementById("max-deducibile"),
   meseCorr: document.getElementById("mese-corrente"),
   ytd: document.getElementById("stat-ytd"),
@@ -611,9 +801,29 @@ function popolaSelectMesi() {
     els.meseCorr.appendChild(opt);
   }
 }
+function popolaSelectAnni() {
+  const years = new Set([CURRENT_YEAR, ANNO]);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const match = /^fondo-pensione\/v2\/(\d{4})$/.exec(localStorage.key(i));
+      if (match) years.add(Number(match[1]));
+    }
+  } catch (_e) { /* storage unavailable */ }
+  els.yearSelect.innerHTML = "";
+  for (const year of [...years].sort((a, b) => b - a)) {
+    const opt = document.createElement("option");
+    opt.value = String(year);
+    opt.textContent = String(year);
+    els.yearSelect.appendChild(opt);
+  }
+  els.yearSelect.value = String(ANNO);
+  els.yearArchive.hidden = years.size <= 1;
+  els.anno.hidden = years.size > 1;
+}
 
 function renderImpostazioni() {
   els.anno.textContent = String(ANNO);
+  els.yearSelect.value = String(ANNO);
   els.maxDed.value = state.maxDeducibile;
   els.meseCorr.value = String(state.meseCorrente);
 }
@@ -639,6 +849,8 @@ function renderTabellaMesi(cumulativi) {
     const mData = state.storico[String(m)];
     const isPast = row.isPast;
     const tr = document.createElement("tr");
+    tr.classList.add("month-row");
+    if (expandedMesi.has(m)) tr.classList.add("expanded");
     if (!isPast) tr.classList.add("future");
 
     // Cella nome mese (+ toggle voci se storico)
@@ -680,6 +892,7 @@ function renderTabellaMesi(cumulativi) {
     if (expandedMesi.has(m)) {
       const trVoci = document.createElement("tr");
       trVoci.classList.add("voci-row");
+      if (!isPast) trVoci.classList.add("future");
       trVoci.id = "voci-" + m;
       const td = document.createElement("td");
       td.colSpan = 3;
@@ -695,7 +908,7 @@ function renderTabellaMesi(cumulativi) {
       actions.className = "voci-actions";
       const btnAdd = document.createElement("button");
       btnAdd.type = "button";
-      btnAdd.textContent = "+ Aggiungi voce";
+      btnAdd.textContent = "+ Aggiungi voce manuale";
       btnAdd.addEventListener("click", () => onAddVoce(m));
       actions.appendChild(btnAdd);
       td.appendChild(list);
@@ -708,49 +921,84 @@ function renderTabellaMesi(cumulativi) {
 
 function renderVoceRow(meseIdx, voce, readonly) {
   const wrap = document.createElement("div");
-  wrap.className = "voce";
+  const editing = !readonly && editingVoceKey === `${meseIdx}:${voce.id}`;
+  wrap.className = `voce ${readonly ? "ricorrente" : "manual"}${editing ? " is-editing" : ""}`;
   wrap.dataset.voceId = voce.id || "";
-  if (readonly) wrap.classList.add("ricorrente");
-
-  const inputDesc = document.createElement("input");
-  inputDesc.type = "text";
-  inputDesc.placeholder = "Descrizione";
-  inputDesc.setAttribute("aria-label", "Descrizione");
-  inputDesc.value = voce.descrizione || "";
-  if (readonly) {
-    inputDesc.readOnly = true;
+  if (!editing) {
+    const description = document.createElement("span");
+    description.className = "voce-description";
+    description.textContent = voce.descrizione || "Senza descrizione";
+    const amount = document.createElement("span");
+    amount.className = "voce-amount";
+    amount.textContent = EURO.format(toNum(voce.importo));
+    wrap.appendChild(description);
+    wrap.appendChild(amount);
   } else {
+    const inputDesc = document.createElement("input");
+    inputDesc.type = "text";
+    inputDesc.placeholder = "Descrizione";
+    inputDesc.setAttribute("aria-label", `Descrizione della voce di ${MESI_NOMI[meseIdx - 1]}`);
+    inputDesc.value = voce.descrizione || "";
     inputDesc.addEventListener("input", (ev) => {
       voce.descrizione = ev.target.value;
       saveStateDebounced();
     });
-  }
 
-  const inputImp = document.createElement("input");
-  inputImp.type = "text";
-  inputImp.inputMode = "decimal";
-  inputImp.placeholder = "0,00";
-  inputImp.setAttribute("aria-label", "Importo (€)");
-  inputImp.value = voce.importo !== undefined && voce.importo !== null && voce.importo !== "" ? String(voce.importo) : "";
-  if (readonly) {
-    inputImp.readOnly = true;
-  } else {
+    const inputImp = document.createElement("input");
+    inputImp.type = "text";
+    inputImp.inputMode = "decimal";
+    inputImp.placeholder = "Importo (€)";
+    inputImp.setAttribute("aria-label", `Importo (€) della voce di ${MESI_NOMI[meseIdx - 1]}`);
+    const errorId = `voce-error-${++fieldId}`;
+    inputImp.setAttribute("aria-describedby", errorId);
+    inputImp.value = voce.importo !== undefined && voce.importo !== null && voce.importo !== "" ? String(voce.importo) : "";
     inputImp.addEventListener("input", (ev) => {
-      voce.importo = toNum(ev.target.value);
-      // Aggiorna solo i numeri (non ridisegnare la lista voci, altrimenti perdi focus)
+      const parsed = parseAmount(ev.target.value);
+      setAmountError(ev.target, parsed.valid ? "" : "Inserisci un importo positivo, con al massimo due decimali.");
+      if (!parsed.valid) return;
+      voce.importo = parsed.value;
       aggiornaSoloCalcoli();
       saveStateDebounced();
     });
+
+    const error = document.createElement("span");
+    error.className = "input-error";
+    error.id = errorId;
+    error.setAttribute("role", "alert");
+    error.hidden = true;
+    wrap.appendChild(inputDesc);
+    wrap.appendChild(inputImp);
+    wrap.appendChild(error);
   }
 
-  wrap.appendChild(inputDesc);
-  wrap.appendChild(inputImp);
   if (readonly) {
     const badge = document.createElement("span");
     badge.className = "voce-badge";
     badge.textContent = "ricorrente";
     wrap.appendChild(badge);
   } else {
+    const actions = document.createElement("div");
+    actions.className = "voce-actions";
+    const btnEdit = document.createElement("button");
+    btnEdit.type = "button";
+    btnEdit.textContent = editing ? "Fine" : "Modifica";
+    btnEdit.setAttribute("aria-label", `${editing ? "Termina modifica" : "Modifica"} voce ${voce.descrizione || "senza descrizione"} di ${MESI_NOMI[meseIdx - 1]}`);
+    btnEdit.addEventListener("click", () => {
+      if (editing) {
+        const amountInput = wrap.querySelectorAll("input")[1];
+        if (amountInput.getAttribute("aria-invalid") === "true") { amountInput.focus(); return; }
+        editingVoceKey = null;
+        render();
+        const row = [...document.querySelectorAll(".voce.manual")].find((el) => el.dataset.voceId === voce.id);
+        if (row) row.querySelector("button").focus();
+      } else {
+        editingVoceKey = `${meseIdx}:${voce.id}`;
+        render();
+        const row = [...document.querySelectorAll(".voce.is-editing")].find((el) => el.dataset.voceId === voce.id);
+        if (row) row.querySelector("input").focus();
+      }
+    });
+    actions.appendChild(btnEdit);
     const btnDel = document.createElement("button");
     btnDel.type = "button";
     btnDel.className = "icon danger";
@@ -758,7 +1006,8 @@ function renderVoceRow(meseIdx, voce, readonly) {
     btnDel.setAttribute("aria-label", "Rimuovi voce" + (voce.descrizione ? " " + voce.descrizione : ""));
     btnDel.textContent = "✕";
     btnDel.addEventListener("click", () => onDeleteVoce(meseIdx, voce.id));
-    wrap.appendChild(btnDel);
+    actions.appendChild(btnDel);
+    wrap.appendChild(actions);
   }
   return wrap;
 }
@@ -781,41 +1030,87 @@ function renderRicorrenteCard(r) {
   const card = document.createElement("div");
   card.className = "ricorrente-card";
 
-  const fDesc = field("Descrizione");
   const inDesc = document.createElement("input");
   inDesc.type = "text";
   inDesc.placeholder = "Es. Trattenuta busta paga";
-  inDesc.setAttribute("aria-label", "Descrizione");
   inDesc.value = r.descrizione || "";
-  inDesc.addEventListener("input", (e) => { r.descrizione = e.target.value; saveStateDebounced(); });
-  fDesc.appendChild(inDesc);
+  inDesc.addEventListener("input", (e) => { r.descrizione = e.target.value; aggiornaMesiERiepilogo(); saveStateDebounced(); });
+  const fDesc = field("Descrizione", inDesc);
 
-  const fImp = field("Importo mensile (€)");
   const inImp = document.createElement("input");
   inImp.type = "text"; inImp.inputMode = "decimal";
   inImp.placeholder = "0,00";
-  inImp.setAttribute("aria-label", "Importo mensile (€)");
   inImp.value = r.importo !== undefined && r.importo !== null && r.importo !== "" ? String(r.importo) : "";
-  inImp.addEventListener("input", (e) => { r.importo = toNum(e.target.value); aggiornaSoloCalcoli(); saveStateDebounced(); });
-  fImp.appendChild(inImp);
-
-  const fIni = field("Mese inizio");
-  const selIni = mesiSelect(r.meseInizio);
-  selIni.addEventListener("change", (e) => {
-    r.meseInizio = clamp(parseInt(e.target.value, 10) || 1, 1, 12);
-    if (r.meseFine < r.meseInizio) r.meseFine = r.meseInizio;
-    render();
+  inImp.addEventListener("input", (e) => {
+    const parsed = parseAmount(e.target.value);
+    setAmountError(e.target, parsed.valid ? "" : "Inserisci un importo positivo, con al massimo due decimali.");
+    if (!parsed.valid) return;
+    r.importo = parsed.value;
+    aggiornaMesiERiepilogo();
+    saveStateDebounced();
   });
-  fIni.appendChild(selIni);
+  const fImp = field("Importo per mese selezionato (€)", inImp);
+  const impError = document.createElement("span");
+  impError.className = "input-error";
+  impError.id = `${inImp.id}-error`;
+  impError.setAttribute("role", "alert");
+  impError.hidden = true;
+  inImp.setAttribute("aria-describedby", impError.id);
+  fImp.appendChild(impError);
 
-  const fFin = field("Mese fine");
-  const selFin = mesiSelect(r.meseFine);
-  selFin.addEventListener("change", (e) => {
-    r.meseFine = clamp(parseInt(e.target.value, 10) || 12, 1, 12);
-    if (r.meseFine < r.meseInizio) r.meseInizio = r.meseFine;
-    render();
-  });
-  fFin.appendChild(selFin);
+  const monthsPicker = document.createElement("details");
+  monthsPicker.className = "months-picker";
+  const monthsSummary = document.createElement("summary");
+  function updateMonthsSummary() {
+    const selected = [...r.mesi].sort((a, b) => a - b);
+    const label = selected.length === 12 ? "Tutti i mesi" : selected.length === 0 ? "Nessun mese" : selected.map((m) => MESI_BREVI[m - 1]).join(", ");
+    monthsSummary.textContent = `Mesi applicati: ${label}`;
+  }
+  updateMonthsSummary();
+  const monthsFieldset = document.createElement("fieldset");
+  const monthsLegend = document.createElement("legend");
+  monthsLegend.textContent = "Scegli i mesi in cui applicare questo importo";
+  monthsFieldset.appendChild(monthsLegend);
+  const monthsGrid = document.createElement("div");
+  monthsGrid.className = "months-grid";
+  const monthCheckboxes = [];
+  function updateMonths() {
+    r.mesi = monthCheckboxes.filter((input) => input.checked).map((input) => Number(input.value));
+    updateMonthsSummary();
+    aggiornaMesiERiepilogo();
+    saveStateNow();
+  }
+  for (let m = 1; m <= 12; m++) {
+    const label = document.createElement("label");
+    label.className = "month-option";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = String(m);
+    input.checked = r.mesi.includes(m);
+    input.addEventListener("change", updateMonths);
+    const name = document.createElement("span");
+    name.textContent = MESI_NOMI[m - 1];
+    label.appendChild(input);
+    label.appendChild(name);
+    monthsGrid.appendChild(label);
+    monthCheckboxes.push(input);
+  }
+  monthsFieldset.appendChild(monthsGrid);
+  const monthsActions = document.createElement("div");
+  monthsActions.className = "months-actions";
+  for (const [text, checked] of [["Seleziona tutti", true], ["Deseleziona tutti", false]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    button.addEventListener("click", () => {
+      monthCheckboxes.forEach((input) => { input.checked = checked; });
+      updateMonths();
+    });
+    monthsActions.appendChild(button);
+  }
+  monthsFieldset.appendChild(monthsActions);
+  monthsPicker.appendChild(monthsSummary);
+  monthsPicker.appendChild(monthsFieldset);
 
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -841,32 +1136,23 @@ function renderRicorrenteCard(r) {
 
   card.appendChild(fDesc);
   card.appendChild(fImp);
-  card.appendChild(fIni);
-  card.appendChild(fFin);
   card.appendChild(actions);
+  card.appendChild(monthsPicker);
   return card;
 }
 
-function field(labelText) {
+let fieldId = 0;
+function field(labelText, control) {
   const f = document.createElement("div");
   f.className = "field";
   const l = document.createElement("label");
+  control.id = `ricorrente-field-${++fieldId}`;
+  l.htmlFor = control.id;
   l.textContent = labelText;
   f.appendChild(l);
+  f.appendChild(control);
   return f;
 }
-function mesiSelect(value) {
-  const sel = document.createElement("select");
-  for (let m = 1; m <= 12; m++) {
-    const opt = document.createElement("option");
-    opt.value = String(m);
-    opt.textContent = MESI_NOMI[m - 1];
-    if (m === value) opt.selected = true;
-    sel.appendChild(opt);
-  }
-  return sel;
-}
-
 // Aggiorna solo dashboard + colonne numeriche, senza ricreare gli input editabili (preserva focus)
 function aggiornaSoloCalcoli() {
   const cum = calcolaCumulativi();
@@ -881,6 +1167,11 @@ function aggiornaSoloCalcoli() {
     cells[2].textContent = EURO.format(row.cumulato);
   });
 }
+function aggiornaMesiERiepilogo() {
+  const cum = calcolaCumulativi();
+  renderDashboard(cum);
+  renderTabellaMesi(cum);
+}
 
 function render() {
   const cum = calcolaCumulativi();
@@ -888,6 +1179,7 @@ function render() {
   renderDashboard(cum);
   renderTabellaMesi(cum);
   renderRicorrenti();
+  renderLegacyBanner();
 }
 
 // ---------- Handlers ----------
@@ -902,6 +1194,7 @@ function onAddVoce(meseIdx) {
   const m = state.storico[String(meseIdx)];
   const nuova = { id: uuid(), descrizione: "", importo: 0 };
   m.voci.push(nuova);
+  editingVoceKey = `${meseIdx}:${nuova.id}`;
   saveStateNow();
   render();
   const row = document.querySelector('.voce[data-voce-id="' + nuova.id + '"]');
@@ -915,6 +1208,7 @@ function onDeleteVoce(meseIdx, voceId) {
   const idx = m.voci.findIndex((v) => v.id === voceId);
   if (idx === -1) return;
   const [removed] = m.voci.splice(idx, 1);
+  if (editingVoceKey === `${meseIdx}:${voceId}`) editingVoceKey = null;
   saveStateNow();
   render();
   mostraToast("Voce rimossa", () => {
@@ -928,8 +1222,7 @@ function onAddRicorrente() {
     id: uuid(),
     descrizione: "",
     importo: 0,
-    meseInizio: 1,
-    meseFine: 12,
+    mesi: Array.from({ length: 12 }, (_, i) => i + 1),
   });
   saveStateNow();
   render();
@@ -959,11 +1252,14 @@ function nascondiToast() {
 }
 
 function exportJSON() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  downloadJSON(state, `fondo-pensione-${ANNO}.json`);
+}
+function downloadJSON(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `fondo-pensione-${ANNO}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -989,11 +1285,22 @@ function importJSON(file) {
         }
         delete d.totaleOverride;
       }
-      const vociCorrenti = Object.values(state.storico).reduce((n, m) => n + (m.voci ? m.voci.length : 0), 0);
+      normalizeRecurringMonths(parsed);
+      const importYear = parsed.anno ?? ANNO;
+      const vociCorrenti = importYear === ANNO ? Object.values(state.storico).reduce((n, m) => n + (m.voci ? m.voci.length : 0), 0) : null;
       const vociNuove = Object.values(parsed.storico).reduce((n, m) => n + (m.voci ? m.voci.length : 0), 0);
-      if (!confirm(`L'importazione sostituirà i dati attuali (${vociCorrenti} voci) con quelli del file (${vociNuove} voci). Continuare?`)) return;
-      state = parsed;
+      const yearWarning = parsed.anno === undefined ? ` Il file non indica l'anno: verifica che i dati siano del ${ANNO}.` : "";
+      const replacement = vociCorrenti === null ? `eventuali dati già salvati per il ${importYear}` : `i dati attuali (${vociCorrenti} voci)`;
+      if (!confirm(`L'importazione sostituirà ${replacement} con quelli del file (${vociNuove} voci).${yearWarning} Continuare?`)) return;
       saveStateNow();
+      ANNO = importYear;
+      parsed.anno = ANNO;
+      state = parsed;
+      expandedMesi.clear();
+      expandedMesi.add(state.meseCorrente);
+      editingVoceKey = null;
+      saveStateNow();
+      popolaSelectAnni();
       render();
       alert("Importazione completata.");
     } catch (_e) {
@@ -1006,6 +1313,9 @@ function resetTutto() {
   if (!confirm("Sei sicuro? Verranno cancellati tutti i versamenti (voci e ricorrenti). Massimo deducibile e mese corrente torneranno ai default.")) return;
   const prima = state;
   state = defaultState();
+  expandedMesi.clear();
+  expandedMesi.add(state.meseCorrente);
+  editingVoceKey = null;
   saveStateNow();
   render();
   mostraToast("Dati azzerati", () => {
@@ -1017,17 +1327,46 @@ function resetTutto() {
 
 // ---------- Wiring ----------
 function init() {
+  const themeSelect = document.getElementById("tema");
+  let themePreference = savedTheme();
+  themeSelect.value = themePreference;
+  themeSelect.addEventListener("change", (e) => {
+    themePreference = e.target.value;
+    applyTheme(themePreference);
+    try { localStorage.setItem(THEME_KEY, themePreference); } catch (_e) { /* storage unavailable */ }
+  });
+  systemTheme.addEventListener("change", () => {
+    if (themePreference === "auto") applyTheme("auto");
+  });
   popolaSelectMesi();
+  popolaSelectAnni();
   render();
 
   els.maxDed.addEventListener("input", (e) => {
-    state.maxDeducibile = toNum(e.target.value);
+    const parsed = parseAmount(e.target.value);
+    setAmountError(e.target, parsed.valid ? "" : "Inserisci un importo positivo, con al massimo due decimali.");
+    if (!parsed.valid) return;
+    state.maxDeducibile = parsed.value;
     aggiornaSoloCalcoli();
     saveStateDebounced();
   });
   els.meseCorr.addEventListener("change", (e) => {
     state.meseCorrente = clamp(parseInt(e.target.value, 10) || 1, 1, 12);
+    expandedMesi.clear();
+    expandedMesi.add(state.meseCorrente);
+    editingVoceKey = null;
     saveStateNow();
+    render();
+  });
+  els.yearSelect.addEventListener("change", (e) => {
+    const year = Number(e.target.value);
+    if (!Number.isInteger(year) || year === ANNO) return;
+    saveStateNow();
+    ANNO = year;
+    state = loadState();
+    expandedMesi.clear();
+    expandedMesi.add(state.meseCorrente);
+    editingVoceKey = null;
     render();
   });
   els.btnExport.addEventListener("click", exportJSON);
@@ -1039,10 +1378,31 @@ function init() {
   });
   els.btnReset.addEventListener("click", resetTutto);
   els.btnAddRic.addEventListener("click", onAddRicorrente);
+  document.getElementById("btn-legacy-export").addEventListener("click", () => {
+    const legacy = legacyData();
+    if (legacy) downloadJSON(legacy, "fondo-pensione-dati-senza-anno.json");
+  });
+  document.getElementById("btn-legacy-use").addEventListener("click", () => {
+    const legacy = legacyData();
+    if (!legacy) return;
+    const count = Object.values(state.storico).reduce((n, m) => n + m.voci.length, 0);
+    if (count > 0 || state.ricorrenti.length > 0) {
+      if (!confirm(`Questo sostituirà i dati già salvati per il ${ANNO}. Continuare?`)) return;
+    }
+    legacy.anno = ANNO;
+    state = legacy;
+    saveStateNow();
+    markLegacyHandled();
+    render();
+  });
+  document.getElementById("btn-legacy-dismiss").addEventListener("click", markLegacyHandled);
 }
 
 init();
 window.addEventListener("beforeunload", saveStateNow);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && new Date().getFullYear() !== CURRENT_YEAR) window.location.reload();
+});
 </script>
 </body>
 </html>
